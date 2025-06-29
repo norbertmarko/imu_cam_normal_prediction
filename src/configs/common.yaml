@@ -1,0 +1,23 @@
+# @package _global_
+
+defaults:
+  - _self_
+
+roi_img_src_size:
+  panda: [1280, 720]
+  kitti: [1241, 376]
+  own: [2208, 1242]
+roi_img_dst_size:  #  if should be None, set to null (no resizing)
+  panda: null # [640, 480]
+  kitti: null # [640, 480]
+  own: null  # [640, 480]
+roi:
+  panda:
+    - points: [[550, 430], [730, 430], [950, 720], [265, 720]]
+  kitti:
+    - points: [[547, 261], [648, 261], [745, 360], [449, 360]]
+  own:
+    - points: [[999, 916], [1293, 916], [1494, 1227], [780, 1228]]
+
+# debug parameters
+debug: false

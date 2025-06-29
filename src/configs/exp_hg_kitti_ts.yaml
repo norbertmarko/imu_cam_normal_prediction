@@ -2,16 +2,16 @@
 
 defaults:
   - _self_
-  - paths/paths_panda
+  - paths/paths_kitti
   - common
 
 repo_root: ${repo_root}
 data_root: ${data_root}
 seq_num: ${seq_num}
-output_dir: ${repo_root}/results/exp_hg_panda_ts
+output_dir: ${repo_root}/results/exp_hg_kitti_ts
 vis: false
 save_vis: true
-gt_dir: ${repo_root}/results/gt_panda
+gt_dir: ${repo_root}/results/gt_kitti
 
 # --- experiment parameters --- #
 

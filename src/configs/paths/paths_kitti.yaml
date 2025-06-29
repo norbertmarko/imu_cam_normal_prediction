@@ -1,0 +1,13 @@
+# @package _global_
+
+defaults:
+  - _self_
+
+repo_root: ${hydra:runtime.cwd}
+data_root: "/home/norbert/datasets/kitti/dataset/sequences" # "/mnt/e/kitti/dataset/sequences"
+
+seq_num: "00"
+# experiments
+output_dir_exp_hg: ${repo_root}/results/exp_hg_kitti
+# gt generation
+output_dir_gt_kitti: ${repo_root}/results/gt_kitti

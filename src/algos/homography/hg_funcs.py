@@ -1,7 +1,12 @@
+from typing import Tuple
 import warnings
 
 import cv2
 import numpy as np
+
+import rootutils
+rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
+import src.utils.linalg as linalg
 
 # OpenCV and NumPy coordinate order: (x, y) or (width, height)
 # Origin: top-left corner (as in computer vision)
@@ -16,9 +21,11 @@ def read_img(img_path):
     return img
 
 
-def proc_img(img, size=None):
+def proc_img(img, size: Tuple[int, int] = None):
     if size is not None:
-        img = cv2.resize(img, size)
+        img = cv2.resize(
+            img, (size[0], size[1]),
+            interpolation=cv2.INTER_LINEAR)
     return img
 
 
@@ -28,11 +35,15 @@ def show_img(img, title="Image"):
     cv2.destroyAllWindows()
 
 
-def calc_homography(src_pts, dst_pts, method=cv2.RANSAC, threshold=5.0):
+def calc_homography(
+        src_pts, dst_pts, method=cv2.RANSAC, threshold=5.0, max_iters=2000, conf_hg_thresh=0.995
+    ): 
     src_pts = np.array(src_pts, dtype=np.float32)
     dst_pts = np.array(dst_pts, dtype=np.float32)
     try:
-        hg_mat, mask = cv2.findHomography(src_pts, dst_pts, method, threshold)
+        hg_mat, mask = cv2.findHomography(
+            src_pts, dst_pts, method, threshold, maxIters=max_iters, confidence=conf_hg_thresh
+        )
     except cv2.error as e:
         warnings.warn(f"Error in findHomography: {e}", UserWarning)
         return None, None
@@ -180,6 +191,21 @@ def visualize_ransac_matches_combined(img1, img2, keypoints1, keypoints2, matche
 
 ### --- Preproccesing functions --- ###
 
+def calculate_scaled_roi(roi, src_img_size, dst_img_size):
+    src_width, src_height = src_img_size
+    dst_width, dst_height = dst_img_size
+
+    # scale factors for width and height
+    scale_x = dst_width / src_width
+    scale_y = dst_height / src_height
+
+    # scale each point in the ROI
+    scaled_roi = [
+        (int(point[0] * scale_x), int(point[1] * scale_y)) for point in roi
+    ]
+    return scaled_roi
+
+
 def calculate_scaled_rois(rois, src_img_size, dst_img_size):
 	src_width, src_height = src_img_size
 	dst_width, dst_height = dst_img_size
@@ -196,6 +222,28 @@ def calculate_scaled_rois(rois, src_img_size, dst_img_size):
 		]
 		scaled_rois.append(scaled_roi)
 	return scaled_rois
+
+
+def calculate_scaled_intrinsics(K: np.ndarray,
+        src_size: Tuple[int, int],
+        dst_size: Tuple[int, int]) -> np.ndarray:
+    """
+    Scale a 3x3 camera intrinsics matrix K
+    from src_img_size=(width, height)
+    to dst_img_size=(width, height).
+    """
+    src_w, src_h = src_size
+    dst_w, dst_h = dst_size
+    assert src_w > 0 and src_h > 0, "Source size must be > 0"
+    sx, sy = dst_w / src_w, dst_h / src_h
+
+    K_new = K.copy()
+    K_new[0, 0] *= sx               # fx
+    K_new[1, 1] *= sy               # fy
+    K_new[0, 2] *= sx               # cx
+    K_new[1, 2] *= sy               # cy
+    
+    return K_new
 
 
 ### --- Postproccesing functions --- ###
@@ -234,47 +282,119 @@ def get_cam_to_lidar_rot(do_rot_z=True, rot_z_deg=180):
     return R
 
 
-def calculate_pitch_from_normal(n_norm):
+def calculate_pitch_from_normal(n_norm, frame="y-backward"):
     """
     Calculate pitch angle from the normalized ground plane normal vector 
-    in a right-handed y-backward reference frame.
+    in one of three right-handed reference frames.
 
     Parameters:
         n_norm (numpy.ndarray): Normalized ground plane normal vector [x, y, z].
+        frame (str): One of
+            - "y-backward"  : x→right,   y→backward, z→up
+            - "x-forward"   : x→forward, y→left,     z→up
+            - "x-backward"  : x→backward,y→left,     z→up
 
     Returns:
         float: Pitch angle in degrees.
-    
-    Raises:
-        ValueError: If the input is not a 3-element numpy array or is a zero vector.
-    
-    Example:
-        >>> calculate_pitch_from_normal(np.array([0, 0, 1]))
-        0.0
-        >>> calculate_pitch_from_normal(np.array([0, -1, 0]))
-        90.0
-        >>> calculate_pitch_from_normal(np.array([0, 1, 0]))
-        -90.0
     """
-    # input validation
+    # --- input validation ---
     if not isinstance(n_norm, np.ndarray):
         raise TypeError("Input normal vector must be a numpy array.")
     if n_norm.shape != (3,):
         raise ValueError("Input normal vector must have shape (3,).")
-    
-    # ensure the normal vector is not the zero vector
     norm = np.linalg.norm(n_norm)
     if norm == 0:
         raise ValueError("Normal vector must not be the zero vector.")
+
+    # --- normalize ---
+    n = n_norm / norm
+
+    # --- compute pitch ---
+    if frame == "y-backward":
+        # x→right, y→backward, z→up
+        # pitch = rotation around lateral (x) axis,
+        # positive when the road slopes downward in front.
+        pitch_rad = np.arctan2(-n[1], np.sqrt(n[0]**2 + n[2]**2))
+
+    elif frame == "x-forward":
+        # x→forward, y→left, z→up
+        pitch_rad = np.arctan2(n[0], n[2])
+
+    elif frame == "x-backward":
+        # x→backward, y→left, z→up
+        # x-backward = –(x-forward), so we flip the sign
+        pitch_rad = np.arctan2(-n[0], n[2])
+
+    else:
+        raise ValueError(
+            f"Unknown frame '{frame}'. "
+            "Choose 'y-backward', 'x-forward', or 'x-backward'."
+        )
+
+    return float(np.degrees(pitch_rad))
+
+
+
+def init_accumulate(first_gt, frame="y-backward"):
+    """
+    Initialize accumulation values based on ground truth data.
+
+    Parameters:
+        first_gt (dict): Ground truth for the first frame.
+
+    Returns:
+        tuple: A tuple containing:
+            - accum_rotation (np.ndarray): The initialized accumulated rotation (identity matrix).
+            - accum_normal (np.ndarray): The initial accumulated normal vector from ground truth.
+            - accum_pitch (float): The initial pitch calculated from the accumulated normal.
+    """
+    accum_rotation = np.eye(3)  # start with identity rotation
+    accum_normal = np.array(first_gt["normal"])
+    accum_pitch = calculate_pitch_from_normal(accum_normal, frame=frame)
+
+    print(f"Initialized accum_pitch: {accum_pitch}")
+    print(f"Initialized accum_normal: {accum_normal}")
     
-    # normalize
-    n_norm = n_norm / norm
+    return accum_rotation, accum_normal, accum_pitch
+
+
+def accumulate_values(accum_rotation, rotation, initial_normal, frame="y-backward"):
+    """
+    Update the accumulated rotation, normal, and pitch based on the new solution.
+
+    Args:
+        accum_rotation (np.ndarray): The current accumulated rotation matrix.
+        solution (dict): The current solution containing 'rotation'.
+        initial_normal (np.ndarray): The initial normal vector from the first ground truth.
+
+    Returns:
+        tuple: Updated accumulated rotation, accumulated normal, and accumulated pitch.
+    """
+    # Update the accumulated rotation by composing with the new rotation
+    accum_rotation = accum_rotation @ rotation
+    # (optional) re-orthogonalize to prevent drift using SVD
+    U, _, Vt = np.linalg.svd(accum_rotation)
+    accum_rotation = U @ Vt
+    # update the accumulated normal vector
+    accum_normal = accum_rotation @ initial_normal
+    accum_normal /= np.linalg.norm(accum_normal)
+    # calculate the accumulated pitch from the updated accumulated normal
+    accum_pitch = calculate_pitch_from_normal(accum_normal, frame=frame)
     
-    # calculate pitch using arctan2 for numerical stability
-    pitch_rad = np.arctan2(-n_norm[1], np.sqrt(n_norm[0]**2 + n_norm[2]**2))
-    pitch_deg = np.degrees(pitch_rad)
-    
-    return pitch_deg
+    return accum_rotation, accum_normal, accum_pitch
+
+
+def collect_norm_candidates(solutions, R_cam_to_lidar, normal_gt, print_candidates=False):
+    norm_candidates = []
+    for sol in solutions:
+        norm_candidate = sol["normal"]
+        # rotate and align normal candidate
+        if print_candidates:
+            print(f"Norm candidate: {norm_candidate}")
+        norm_candidate = linalg.rotate_vector(norm_candidate, R_cam_to_lidar)
+        norm_candidate = linalg.align_normal_ref_vec(norm_candidate, normal_gt)
+        norm_candidates.append(norm_candidate)
+    return norm_candidates
 
 
 ### --- Debugging functions --- ###

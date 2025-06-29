@@ -9,8 +9,20 @@ def align_normal_ref_vec(normal_calc, normal_ref):
 	:param normal_ref: Ground truth normal vector (numpy array).
 	:return: Aligned Calculated normal vector (numpy array).
 	"""
+	# Input Validation
+	normal_calc = np.asarray(normal_calc, dtype=float)
+	normal_ref  = np.asarray(normal_ref , dtype=float)
+
+	if normal_calc.shape != (3,) or normal_ref.shape != (3,):
+		raise ValueError("Both normal_calc and normal_ref must be 3-element vectors.")
+
+	if np.linalg.norm(normal_ref) == 0:
+		raise ValueError("Reference normal must be non-zero.")
+
+	# Alignment
 	if np.dot(normal_calc, normal_ref) < 0:
 		normal_calc = -normal_calc
+
 	return normal_calc
 
 
@@ -31,17 +43,27 @@ def align_normal_ref_pt(normal_calc, ref_pt=None, plane_ctr=None):
 	>>> align_normal_ref_pt(normal_calc, ref_pt)
 	res: array([ 0.,  0.,  1.])
 	"""
-	if ref_pt is None:
-		ref_pt = np.array([0, 0, 0])
-	if plane_ctr is None:
-		plane_ctr = np.array([0, 0, 0])
+	# Input Validation
+	normal_calc = np.asarray(normal_calc, dtype=float)
+	ref_pt      = np.asarray(ref_pt     , dtype=float)
+	plane_ctr   = np.asarray(plane_ctr  , dtype=float)
 
-	# create a vector from the plane center to the reference point
+	# All three must be length-3
+	for name, vec in (("normal_calc", normal_calc),
+					  ("ref_pt",      ref_pt),
+					  ("plane_ctr",   plane_ctr)):
+		if vec.shape != (3,):
+			raise ValueError(f"{name} must be a 3-element vector.")
+
+	# The reference direction is from the plane center toward ref_pt:
 	normal_ref = ref_pt - plane_ctr
+	if np.linalg.norm(normal_ref) == 0:
+		raise ValueError("ref_pt and plane_ctr must not coincide; need a non-zero reference direction.")
 
-	# if the dot product is negative, flip the normal
+	# Alignment
 	if np.dot(normal_calc, normal_ref) < 0:
 		normal_calc = -normal_calc
+
 	return normal_calc
 
 

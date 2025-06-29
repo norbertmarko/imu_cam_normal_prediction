@@ -137,7 +137,7 @@ def plot_complex_normal(
 	plt.tight_layout()
 
 	if save_vis:
-		output_path = os.path.join(root, seq_num, "complex_normal", f"complex_normal_{i}_{i+1}.jpg")
+		output_path = os.path.join(root, seq_num, "complex_normal", f"complex_normal_{i:03d}_{i+1:03d}.jpg")
 		os.makedirs(os.path.dirname(output_path), exist_ok=True)
 		plt.savefig(output_path, dpi=300, format='jpg')
 	if vis:
@@ -146,77 +146,91 @@ def plot_complex_normal(
 
 
 def plot_complex_pitch(
-	blended_image, homography_matrix, pitch_vals,
-	ref_pitch_vals, pitch_error,
-	root, seq_num, i, vis, save_vis
+    blended_image, homography_matrix, pitch_vals,
+    ref_pitch_vals, pitch_error,
+    root, seq_num, i, vis, save_vis
 ):
-	"""
-	A complex plot with four components:
-		1. Blended Image
-		2. Calculated Homography Matrix
-		3. Pitch Values (Predicted and Ground Truth)
-		4. Calculated Difference Between Normals /deg/ (Predicted and Ground Truth)
-	"""
-	fig = plt.figure(figsize=(16, 8))
-	gs = GridSpec(4, 2, figure=fig)
+    """
+    A complex plot with four components:
+        1. Blended Image
+        2. Calculated Homography Matrix
+        3. Pitch Values (Predicted and Ground Truth)
+        4. Pitch Error Text
+    """
+    fig = plt.figure(figsize=(16, 8))
+    gs = GridSpec(4, 2, figure=fig)
 
-	# subplot 1 (upper left): Blended Image
-	ax1 = fig.add_subplot(gs[0:3, 0])
-	ax1.imshow(cv2.cvtColor(blended_image, cv2.COLOR_BGR2RGB))
-	ax1.set_title('Blended Image')
-	ax1.axis('off')
+    # subplot 1 (upper left): Blended Image
+    ax1 = fig.add_subplot(gs[0:3, 0])
+    ax1.imshow(cv2.cvtColor(blended_image, cv2.COLOR_BGR2RGB))
+    ax1.set_title('Blended Image')
+    ax1.axis('off')
 
-	# subplot 2 (lower left): Homography Matrix
-	ax2 = fig.add_subplot(gs[3, 0])
-	homography_str = '\n'.join([' '.join([f"{item:8.4f}" for item in row]) for row in homography_matrix])
-	ax2.axis('off')
-	ax2.text(0.5, 0.5, homography_str, fontsize=12, ha='center', va='center', family='monospace')
-	ax2.set_title('Homography Matrix')
+    # subplot 2 (lower left): Homography Matrix
+    ax2 = fig.add_subplot(gs[3, 0])
+    homography_str = '\n'.join(
+        [' '.join([f"{item:8.4f}" for item in row]) for row in homography_matrix]
+    )
+    ax2.axis('off')
+    ax2.text(0.5, 0.5, homography_str,
+             fontsize=12, ha='center', va='center', family='monospace')
+    ax2.set_title('Homography Matrix')
 
-	# subplot 3 (upper right): Pitch Values (Predicted and Ground Truth)
-	ax3 = fig.add_subplot(gs[0:3, 1])
+    # subplot 3 (upper right): Pitch Values (Predicted and Ground Truth)
+    ax3 = fig.add_subplot(gs[0:3, 1])
+    frames = np.arange(1, len(pitch_vals) + 1)
+    N = len(frames)
+    step = max(1, N // 80)
 
-	# x-axis: frame numbers (1-based indexing)
-	frames = range(1, len(pitch_vals) + 1)
-	ax3.plot(frames, pitch_vals, label='Predicted Pitch', color='green', marker='o', linestyle='-')
-	ax3.plot(frames, ref_pitch_vals, label='Ground Truth Pitch', color='purple', marker='x', linestyle='--')
-	
-	# highlight the current frame with a vertical line
-	ax3.axvline(x=len(pitch_vals), color='green', linestyle=':', label='Current Frame')
-	
-	# Set plot titles and labels
-	ax3.set_title('Pitch Values (Predicted and Ground Truth)')
-	ax3.set_xlabel('Frame')
-	ax3.set_ylabel('Pitch (degrees)')
-	ax3.legend()
-	
-	# set consistent x and y limits for better video visualization
-	ax3.set_xlim(1, max(80, len(pitch_vals) + 1))  # adjust 10 to a suitable number based on your data
-	# determine y-axis limits based on current data with some margin
-	all_pitches = pitch_vals + ref_pitch_vals
-	if all_pitches:
-		y_min = min(all_pitches) - 5  # margin of 5 degrees
-		y_max = max(all_pitches) + 5
-		ax3.set_ylim(y_min, y_max)
-	
-	ax3.grid(True)
+    # draw full lines (semi-transparent)
+    ax3.plot(frames, pitch_vals,
+             label='Predicted Pitch',
+             color='green', linestyle='-', linewidth=1, alpha=0.7)
+    ax3.plot(frames, ref_pitch_vals,
+             label='Ground Truth Pitch',
+             color='purple', linestyle='--', linewidth=1, alpha=0.7)
 
-	# subplot 4 (lower right): Calculated Difference Between Pitch Values /deg/
-	ax4 = fig.add_subplot(gs[3, 1])
-	ax4.axis('off')
+    # overlay sparse, small markers
+    ax3.scatter(frames[::step], np.array(pitch_vals)[::step],
+                color='green', marker='o', s=20, alpha=0.7)
+    ax3.scatter(frames[::step], np.array(ref_pitch_vals)[::step],
+                color='purple', marker='x', s=20, alpha=0.7)
 
-	pitch_text = f"Pitch Error: {pitch_error:.2f}°"
-	ax4.text(0.5, 0.3, pitch_text, fontsize=10, ha='center', va='center', color='black', weight='bold')
+    # vertical line for current frame
+    ax3.axvline(x=N, color='green', linestyle=':', label='Current Frame')
 
-	plt.tight_layout()
+    ax3.set_title('Pitch Values (Predicted and Ground Truth)')
+    ax3.set_xlabel('Frame')
+    ax3.set_ylabel('Pitch (degrees)')
+    ax3.legend()
+    ax3.set_xlim(1, max(80, N + 1))
 
-	if save_vis:
-		output_path = os.path.join(root, seq_num, "complex_pitch", f"complex_pitch_{i}_{i+1}.jpg")
-		os.makedirs(os.path.dirname(output_path), exist_ok=True)
-		plt.savefig(output_path, dpi=300, format='jpg')
-	if vis:
-		plt.show()
-	plt.close()
+    all_p = pitch_vals + ref_pitch_vals
+    if all_p:
+        ax3.set_ylim(min(all_p) - 5, max(all_p) + 5)
+    ax3.grid(True)
+
+    # subplot 4 (lower right): Pitch Error
+    ax4 = fig.add_subplot(gs[3, 1])
+    ax4.axis('off')
+    pitch_text = f"Pitch Error: {pitch_error:.2f}°"
+    ax4.text(0.5, 0.3, pitch_text,
+             fontsize=10, ha='center', va='center',
+             color='black', weight='bold')
+
+    plt.tight_layout()
+
+    if save_vis:
+        output_path = os.path.join(
+            root, seq_num, "complex_pitch",
+            f"complex_pitch_{i:03d}_{i+1:03d}.jpg"
+        )
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        plt.savefig(output_path, dpi=300, format='jpg')
+    if vis:
+        plt.show()
+    plt.close()
+
 
 
 def vis_matches(img1, img2, keypoints1, keypoints2, matches, roi_pts, root, seq_num, i, vis, save_vis):
@@ -241,7 +255,7 @@ def vis_matches(img1, img2, keypoints1, keypoints2, matches, roi_pts, root, seq_
 	img_with_matches = hg_funcs.visualize_matches(img1_vis, img2_vis, keypoints1, keypoints2, matches)
 
 	if save_vis:
-		output_path = os.path.join(root, seq_num, "matches", f"matches_img_{i}_{i+1}.jpg")
+		output_path = os.path.join(root, seq_num, "matches", f"matches_img_{i:03d}_{i+1:03d}.jpg")
 		os.makedirs(os.path.dirname(output_path), exist_ok=True)
 		cv2.imwrite(output_path, img_with_matches)
 	if vis:
@@ -264,7 +278,7 @@ def vis_ransac(img1, img2, keypoints1, keypoints2, matches, mask, root, seq_num,
 	img_ransac = hg_funcs.visualize_ransac_matches_combined(img1, img2, keypoints1, keypoints2, matches, mask)
 	
 	if save_vis:
-		output_path = os.path.join(root, seq_num, "ransac", f"ransac_img_{i}_{i+1}.jpg")
+		output_path = os.path.join(root, seq_num, "ransac", f"ransac_img_{i:03d}_{i+1:03d}.jpg")
 		os.makedirs(os.path.dirname(output_path), exist_ok=True)
 		cv2.imwrite(output_path, img_ransac)
 	if vis:
@@ -561,90 +575,88 @@ def plot_hg_param_sensitivity(
 	save_vis
 ):
 	"""
-	Plot pitch values (calculated and ground truth) and homography matrix elements in a 3-column grid.
-
-	Each column contains:
-		- Top: Pitch plot with both calculated and ground truth values.
-		- Middle: Three homography parameters.
-
-	Parameters:
-		pitch_vals (list of float): Calculated pitch values.
-		ref_pitch_vals (list of float): Ground truth pitch values.
-		hg_mats (list of np.ndarray): List of 3x3 homography matrices.
+	Plot pitch values (calculated and ground truth) and homography matrix elements
+	in a 3-column grid, with vertical guide lines and x-axis labels every 10th frame
+	under every subplot.
 	"""
 	if len(hg_mats) != len(pitch_vals):
-		raise ValueError(
-			"Length of homography_matrices must match length of pitch_values."
-		)
+		raise ValueError("Length of homography_matrices must match length of pitch_values.")
 	if len(ref_pitch_vals) != len(pitch_vals):
-		raise ValueError(
-			"Length of pitch_values_gt must match length of pitch_values."
-		)
+		raise ValueError("Length of pitch_values_gt must match length of pitch_values.")
 	
-	# extract homography matrix elements (shape: (num_frames, 9))
+	# flatten homographies
 	hg_elements = np.array([hg.flatten() for hg in hg_mats])
+	num_frames  = len(pitch_vals)
+	frames      = np.arange(num_frames)
+	vertical_line_frames = frames[::10]
+	x_labeled_frames = frames[::50]
+
+	# extra-wide SVG canvas
+	fig = plt.figure(figsize=(25, 16), dpi=300)
+	gs  = GridSpec(4, 3, height_ratios=[1,1,1,1], hspace=0.4, wspace=0.3)
 	
-	# define subplot grid: 4 rows x 3 columns
-	# row 0: pitch plots
-	# rows 1-3: homography parameters
-	fig = plt.figure(figsize=(18, 16), dpi=300)
-	gs = GridSpec(4, 3, height_ratios=[1, 1, 1, 1], hspace=0.4, wspace=0.3)
-	
-	# define groups for homography parameters
 	hg_groups = {
 		0: ['h1', 'h2', 'h3'],
 		1: ['h4', 'h5', 'h6'],
 		2: ['h7', 'h8', 'h9']
 	}
-	
-	# define colors for homography parameters within each group
-	# 3 distinct colors per group
 	color_palette = plt.cm.tab10(np.linspace(0, 1, 3))
 	
-	frame_idxs = np.arange(len(pitch_vals))
 	for col in range(3):
-		# --- Pitch Subplot ---
-		ax_pitch = fig.add_subplot(gs[0, col])
-		ax_pitch.plot(frame_idxs, pitch_vals, label="Calculated Pitch",
-				color="blue", linewidth=2, alpha=0.7
-		)
-		ax_pitch.plot(
-			frame_idxs, ref_pitch_vals, label="Ground Truth Pitch", color="red",
-			linestyle='--', linewidth=2, alpha=0.7
-		)
-		ax_pitch.set_ylabel("Pitch (degrees)")
-		ax_pitch.set_title(f"Pitch Sensitivity - Column {col+1}")
-		ax_pitch.grid(True, linestyle="--", linewidth=0.5, alpha=0.7)
-		ax_pitch.legend(loc="upper right", fontsize='small')
-		
-		# --- Homography Parameter Subplots ---
+		# — Pitch subplot
+		ax = fig.add_subplot(gs[0, col])
+		ax.plot(frames, pitch_vals,      label="Calculated Pitch",
+				color="blue",  linewidth=2, alpha=0.7)
+		ax.plot(frames, ref_pitch_vals,  label="Ground Truth Pitch",
+				color="red",   linestyle='--', linewidth=2, alpha=0.7)
+		ax.set_ylabel("Pitch (°)")
+		ax.set_title(f"Pitch Sensitivity – Col {col+1}")
+		ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.7)
+		ax.legend(loc="upper right", fontsize='small')
+
+		# vertical guide lines & x-ticks for every subplot
+		for x in frames:
+			ax.axvline(x, color="gray", alpha=0.1, linewidth=0.6)
+		for x in vertical_line_frames:
+			ax.axvline(x, color="gray", alpha=0.4, linewidth=1.0)
+		ax.set_xticks(x_labeled_frames)
+		ax.set_xticklabels(x_labeled_frames, rotation=45, fontsize=8)
+		ax.tick_params(axis='x', which='both', labelbottom=True)
+
+		# — Homography parameter subplots
 		for row in range(1, 4):
-			param_idx = col * 3 + (row - 1)
+			idx        = col*3 + (row - 1)
 			param_name = hg_groups[col][row - 1]
 			ax = fig.add_subplot(gs[row, col])
-			ax.plot(
-				frame_idxs, hg_elements[:, param_idx], 
-				label=f"{param_name}", color=color_palette[row-1], 
-				linewidth=1.5
-			)
+			ax.plot(frames, hg_elements[:, idx],
+					label=param_name,
+					color=color_palette[row-1],
+					linewidth=1.5)
 			ax.set_ylabel(param_name)
 			ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.7)
-			
-			# set x-labels only on the bottom row (hide for upper subplots)
+
+			# same vertical lines + ticks on each
+			for x in frames:
+				ax.axvline(x, color="gray", alpha=0.1, linewidth=0.6)
+			for x in vertical_line_frames:
+				ax.axvline(x, color="gray", alpha=0.4, linewidth=1.0)
+			ax.set_xticks(x_labeled_frames)
+			ax.set_xticklabels(x_labeled_frames, rotation=45, fontsize=8)
+			ax.tick_params(axis='x', which='both', labelbottom=True)
+
+			# only bottom row gets the axis label
 			if row == 3:
 				ax.set_xlabel("Frame")
-			else:
-				ax.set_xticklabels([])
-	
+
 	fig.suptitle("Pitch and Homography Matrix Sensitivity", fontsize=16, y=0.95)
-	
-	# prevent overlapping (leave space for the suptitle)
 	plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-	
+
 	if save_vis:
-		output_path = os.path.join(root, seq_num, f"hg_param_sensitivity_pitch.jpg")
-		plt.savefig(output_path, format="jpg", dpi=300, bbox_inches="tight")
-		print(f"HG sensitivity plot saved to {output_path}")
+		out_dir = os.path.join(root, seq_num)
+		os.makedirs(out_dir, exist_ok=True)
+		out_path = os.path.join(out_dir, "hg_param_sensitivity_pitch.svg")
+		fig.savefig(out_path, format="svg", dpi=300, bbox_inches="tight")
+		print(f"HG sensitivity plot saved to {out_path}")
 	if vis:
 		plt.show()
 	plt.close(fig)
@@ -719,7 +731,7 @@ def plot_complex_imu_pitch(
 	plt.tight_layout()
 
 	if save_vis:
-		output_path = os.path.join(root, seq_name, "complex_imu", f"complex_imu_{i}_{i+1}.jpg")
+		output_path = os.path.join(root, seq_name, "complex_imu", f"complex_imu_{i:03d}_{i+1:03d}.jpg")
 		os.makedirs(os.path.dirname(output_path), exist_ok=True)
 		plt.savefig(output_path, dpi=300, format='jpg')
 	if vis:
