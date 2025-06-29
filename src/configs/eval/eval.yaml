@@ -1,0 +1,12 @@
+hydra:
+  # Optionally set a run directory or other hydra options here
+  run:
+    dir: ${hydra:runtime.cwd}/results/${now:%y-%m-%d_%H-%M-%S}
+
+defaults:
+  - _self_
+  - dataset: panda  # This is the default; can be overridden to 'panda', 'kitti' or 'own'
+
+# visualization settings
+vis: false
+save_vis: false

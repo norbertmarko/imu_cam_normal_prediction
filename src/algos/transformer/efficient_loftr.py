@@ -30,9 +30,9 @@ import torch.serialization
 #   your_repo/src/_experiments/_ext/EfficientLoFTR/
 # add that directory to PYTHONPATH once in your __init__.py or rootutils.setup()
 # ════════════════════════════════════════════════════════════════════════════
-from src._experiments._ext.EfficientLoFTR.src.loftr.loftr import LoFTR
-from src._experiments._ext.EfficientLoFTR.src.config.default import get_cfg_defaults
-from src._experiments._ext.EfficientLoFTR.src.utils.misc import lower_config
+from src._ext.EfficientLoFTR.src.loftr.loftr import LoFTR
+from src._ext.EfficientLoFTR.src.config.default import get_cfg_defaults
+from src._ext.EfficientLoFTR.src.utils.misc import lower_config
 
 # --------------------------------------------------------------------------- #
 #                                PARAMS                                       #

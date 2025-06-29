@@ -1,0 +1,12 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - ../paths/paths_own
+
+repo_root: ${repo_root}
+processed_data_root: ${processed_data_root}
+seq_num: ${seq_num}
+output_dir: ${repo_root}/results/ref_gnf_own
+
+save_vis: true

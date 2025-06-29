@@ -16,18 +16,11 @@ from src.data_funcs import panda_funcs
 from src.gt import vis_gt_normal
 import src.utils.data_utils as data
 import src.utils.linalg as linalg
+import src.algos.homography.hg_funcs as hg_funcs
 
 # Video generation script:
 # ./src/_experiments/scripts/gen_gt_video.sh --seq-num 41
 # ./src/_experiments/scripts/gen_gt_video.sh --seq-num 41 --type proj_filtered
-
-# OPTIIONAL TODOS:
-# TODO: filter out points from back of the car (use ego frame)
-# TODO: investigate: why there is an x-rotation in ego frame? (check if it's a bug)
-# TODO: (IDEA) use raw points for image based result visualization (plane and normal on it with ROI)
-#       OR just calculate ROI size in 3D with points
-# TODO: add semantic category filtering
-# TODO: try plotting in Open3D? (open3D github issue)
 
 def process_data(panda_root, seq_num, lidar_sensor=None):
 	dataset, seq_list = panda_funcs.read_pandaset(panda_root)
@@ -39,24 +32,6 @@ def process_data(panda_root, seq_num, lidar_sensor=None):
 	cam_poses = cam_obj.poses[:]
 	lidar_poses = panda_funcs.parse_panda_seq_lidar_poses(lidar_obj, sensor=lidar_sensor)
 	return images, camera_K, pcs, cam_poses, lidar_poses
-
-
-def calculate_scaled_rois(rois, src_img_size, dst_img_size):
-	src_width, src_height = src_img_size
-	dst_width, dst_height = dst_img_size
-
-	# scale factors for width and height
-	scale_x = dst_width / src_width
-	scale_y = dst_height / src_height
-
-	# scale each ROI
-	scaled_rois = []
-	for roi in rois:
-		scaled_roi = [
-			(int(point[0] * scale_x), int(point[1] * scale_y)) for point in roi
-		]
-		scaled_rois.append(scaled_roi)
-	return scaled_rois
 
 
 def filter_points_in_roi(points2d, points3d, roi):
@@ -215,7 +190,7 @@ def calc_ground_plane_center(filtered_3d_inliers):
 
 
 def calc_gt_normal(
-	panda_root, seq_num, rois, cam_ref_pt, plane_ctr_pt, 
+	panda_root, seq_num, roi, cam_ref_pt, plane_ctr_pt, 
 	results_root,
 	tf_id=0, lidar_sensor=None, vis=False, 
 	save_vis=False, single_frame=False
@@ -240,99 +215,99 @@ def calc_gt_normal(
 			filter_outliers=True
 		)
 
-		for roi_idx, roi in enumerate(rois):
-			print(f"Processing: image {i}, ROI {roi}")
-   
-			filtered_2d, filtered_3d, roi_mask = filter_points_in_roi(proj_pts_2d, cam_pts_3d, roi)
-			if filtered_3d.size == 0:
-				print(f"[WARN] No points in ROI for image {i}. Skipping visualization and RANSAC.")
-				continue
 
-	 		# map the ROI mask back to the original point cloud indices
-			roi_idxs = inner_idxs[roi_mask]
-			# select the corresponding original points
-			pc_og_filtered = pc[roi_idxs]
-				
+		print(f"Processing: image {i}, ROI {roi}")
 
+		filtered_2d, filtered_3d, roi_mask = filter_points_in_roi(proj_pts_2d, cam_pts_3d, roi)
+		if filtered_3d.size == 0:
+			print(f"[WARN] No points in ROI for image {i}. Skipping visualization and RANSAC.")
+			continue
+
+		# map the ROI mask back to the original point cloud indices
+		roi_idxs = inner_idxs[roi_mask]
+		# select the corresponding original points
+		pc_og_filtered = pc[roi_idxs]
 			
-			# IMPORTANT: transform to ego frame after filtering, not before
-			if tf_id == 0:
-				pc_og_transformed = tf_pts_to_ego(
-					pc_og_filtered, lidar_pose
-				)
-				frame = "ego"
-			elif tf_id == 1:
-				pc_og_transformed = tf_pts_to_first_pose(
-					pc_og_filtered, lidar_pose, lidar_poses[0]
-				)
-				frame = "first"
-			elif tf_id == 2:
-				pc_og_transformed = pc_og_filtered
-				frame = "world"
-			else:
-				raise ValueError("Invalid tf_id value in config. Choose from [0, 1, 2].")
-
-			# RANSAC ground plane estimation (with outlier removal)
-			lof = LocalOutlierFactor(n_neighbors=20, contamination=0.1)
-			inliers = lof.fit_predict(pc_og_transformed) > 0
-			filtered_3d_inliers = pc_og_transformed[inliers]
-
-			ground_plane_coeffs = calc_ground_plane_ransac(
-				filtered_3d_inliers, threshold=0.01, max_iterations=100
+		# IMPORTANT: transform to ego frame after filtering, not before
+		if tf_id == 0:
+			pc_og_transformed = tf_pts_to_ego(
+				pc_og_filtered, lidar_pose
 			)
-			if ground_plane_coeffs is None:
-				print("[WARN] Could not compute ground plane!")
-				continue
-   
-			ground_normal = calc_ground_plane_normal(ground_plane_coeffs)
-			ground_normal = linalg.align_normal_ref_pt(
-				ground_normal,
-				ref_pt=np.array(cam_ref_pt),
-				plane_ctr=np.array(plane_ctr_pt)
-			)			
-			plane_centroid = calc_ground_plane_center(filtered_3d_inliers)
+			frame = "ego"
+		elif tf_id == 1:
+			pc_og_transformed = tf_pts_to_first_pose(
+				pc_og_filtered, lidar_pose, lidar_poses[0]
+			)
+			frame = "first"
+		elif tf_id == 2:
+			pc_og_transformed = pc_og_filtered
+			frame = "world"
+		else:
+			raise ValueError("Invalid tf_id value in config. Choose from [0, 1, 2].")
+
+		# RANSAC ground plane estimation (with outlier removal)
+		lof = LocalOutlierFactor(n_neighbors=50, contamination=0.01, metric='euclidean')
+		inliers = lof.fit_predict(pc_og_transformed) > 0
+		filtered_3d_inliers = pc_og_transformed[inliers]
+
+		ground_plane_coeffs = calc_ground_plane_ransac(
+			filtered_3d_inliers,
+			threshold=0.01,
+			max_iterations=1000
+		)
+		if ground_plane_coeffs is None:
+			print("[WARN] Could not compute ground plane!")
+			continue
+
+		ground_normal = calc_ground_plane_normal(ground_plane_coeffs)
+		ground_normal = linalg.align_normal_ref_pt(
+			ground_normal,
+			ref_pt=np.array(cam_ref_pt),
+			plane_ctr=np.array(plane_ctr_pt)
+		)			
+		plane_centroid = calc_ground_plane_center(filtered_3d_inliers)
 
 
-			# get camera to LiDAR transformation matrix (rotation only)
-			rot_cam_to_lidar = get_cam_tf_mat(cam_pose, lidar_poses[0])
+		# get camera to LiDAR transformation matrix (rotation only)
+		rot_cam_to_lidar = get_cam_tf_mat(cam_pose, lidar_poses[0])
 
-			# visualize the results
-			# vis_gt_normal.visualize_filtered_projection(
-			# 	img, proj_pts_2d, cam_pts_3d, results_root, seq_num, i, 
-			# 	show_img=True, vis=vis, save_vis=save_vis
-			# )  # full projection without filtering
+		# visualize the results
+		vis_gt_normal.visualize_filtered_projection(
+			img, proj_pts_2d, cam_pts_3d, results_root, seq_num, i, 
+			show_img=True, vis=vis, save_vis=save_vis
+		)  # full projection without filtering
 
-			# vis_gt_normal.visualize_filtered_projection(
-	   		# 	img, filtered_2d, pc_og_transformed, results_root, seq_num,
-			# 	i, show_img=True, vis=vis, save_vis=save_vis
-			# )
+		vis_gt_normal.visualize_filtered_projection(
+			img, filtered_2d, pc_og_transformed, results_root, seq_num,
+			i, show_img=True, vis=vis, save_vis=save_vis
+		)
 
-			# gt_vis.plot_filtered_3d_points(
-			# 	pc_og_transformed, results_root, seq_num, i, vis=vis,
-			# 	save_vis=save_vis
-			# )
-			
-			# gt_vis.plot_plane_with_normal(
-			# 	pc_og_transformed, ground_plane_coeffs, ground_normal, 
-			# 	results_root, seq_num, i, vis=vis, save_vis=save_vis
-			# )
-
-			# vis_gt_normal.plot_complex_visualization(
-			# 	img, filtered_2d, pc_og_transformed, ground_plane_coeffs,
-			# 	ground_normal, plane_centroid, results_root, seq_num, i,
-			# 	vis, save_vis
-			# )
+		# gt_vis.plot_filtered_3d_points(
+		# 	pc_og_transformed, results_root, seq_num, i, vis=vis,
+		# 	save_vis=save_vis
+		# )
 		
-			# save gt for current ROI
-			ground_truth.setdefault(i, {})[roi_idx] = {
-				"proj_pts_2d": filtered_2d.tolist(),
-				"cam_pts_3d": pc_og_transformed.tolist(),
-				"plane_coefficients": list(ground_plane_coeffs),
-				"normal": ground_normal.tolist(),
-				"centroid": plane_centroid.tolist(),
-				"ref_frame": frame,
-				"rot_cam_to_lidar": rot_cam_to_lidar.tolist()
-			}
+		# gt_vis.plot_plane_with_normal(
+		# 	pc_og_transformed, ground_plane_coeffs, ground_normal, 
+		# 	results_root, seq_num, i, vis=vis, save_vis=save_vis
+		# )
+
+		vis_gt_normal.plot_complex_visualization(
+			img, filtered_2d, pc_og_transformed, ground_plane_coeffs,
+			ground_normal, plane_centroid, results_root, seq_num, i,
+			vis, save_vis
+		)
+	
+		# save gt for current ROI (always 0)
+		ground_truth.setdefault(i, {})[0] = {
+			"proj_pts_2d": filtered_2d.tolist(),
+			"cam_pts_3d": pc_og_transformed.tolist(),
+			"plane_coefficients": list(ground_plane_coeffs),
+			"normal": ground_normal.tolist(),
+			"centroid": plane_centroid.tolist(),
+			"ref_frame": frame,
+			"rot_cam_to_lidar": rot_cam_to_lidar.tolist()
+		}
 
 		if single_frame:
 			break
@@ -343,7 +318,10 @@ def calc_gt_normal(
 	data.save_pickle_data(ground_truth, output_path)
 
 
-@hydra.main(version_base="1.3", config_path="../configs/gt", config_name="gt_normal_panda.yaml")
+@hydra.main(
+		version_base="1.3", config_path="../configs/gt",
+		config_name="gt_normal_panda.yaml"
+)
 def main(cfg: DictConfig) -> None:
 	"""
 	Main entry point for ground truth generation.
@@ -351,29 +329,32 @@ def main(cfg: DictConfig) -> None:
 	gt_root = os.path.join(cfg.repo_root, "results", "gt_panda")
 	os.makedirs(gt_root, exist_ok=True)
 
-	# load data (pcs: list, np.ndarray inside list for each frame, access with pcs[frame_idx])
-	images, _, _, _, _ = process_data(cfg.panda_root, cfg.seq_num, lidar_sensor=cfg.lidar_sensor)
+	# load data
+	images, _, _, _, _ = process_data(
+		cfg.data_root, cfg.seq_num, lidar_sensor=cfg.lidar_sensor
+	)
 
-	# handle ROIs
-	if not cfg.roi or len(cfg.roi) == 0:
+	# handle ROI
+	roi_idx = 0
+	if not cfg.roi:
 		default_roi = [(550, 430), (730, 430), (950, 720), (265, 720)]
 		print("No ROI provided. Using default ROI:", default_roi)
-		rois = [default_roi]
+		roi = default_roi
 	else:
-		rois = [list(map(tuple, roi.points)) for roi in cfg.roi]
+		roi = list(map(tuple, cfg.roi['panda'][roi_idx].points))
 
-	# resize ROI for current image size
-	roi_img_src_size = cfg.img_src_size
+
+	# rescale ROI (always rescale; if curr. img size is the same, no change)
+	roi_img_src_size = cfg.roi_img_src_size.panda
 	roi_img_dst_size = images[0].size
-	rois = calculate_scaled_rois(rois, roi_img_src_size, roi_img_dst_size)
+	roi = hg_funcs.calculate_scaled_roi(roi, roi_img_src_size, roi_img_dst_size)
 
 	calc_gt_normal(
-		cfg.panda_root, cfg.seq_num, rois, cfg.cam_ref_pt, cfg.plane_ctr_pt,
+		cfg.data_root, cfg.seq_num, roi, cfg.cam_ref_pt, cfg.plane_ctr_pt,
 		gt_root, 
   		tf_id=cfg.tf_id, lidar_sensor=cfg.lidar_sensor,
 	 	vis=cfg.vis, save_vis=cfg.save_vis, single_frame=cfg.single_frame
 	)
-
 	print(f"Ground truth generation complete for sequence {cfg.seq_num}!")
 
 

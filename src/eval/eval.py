@@ -13,16 +13,16 @@ from rich.console import Console
 import rootutils
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
-import src.utils.data_utils as data_utils
-import src.utils.linalg as linalg
-import src.algos.homography.hg_funcs as hg_funcs
-import src.eval.eval_norm as eval_norm
-import src.eval.eval_vis as eval_vis
+import src._experiments.utils.data_utils as data_utils
+import src._experiments.utils.linalg as linalg
+import src._experiments.algos.homography.hg_funcs as hg_funcs
+import src._experiments.eval.eval_norm as eval_norm
+import src._experiments.eval.eval_vis as eval_vis
 
 
 # TODO: add option to choose if you want to evaluate a single sequence or multiple sequences (glob for whole dataset)
 
-def eval_exp_metrics(seq_num, gt_dir, exp_dir, ref_data_dirs, output_dir):
+def eval_exp_metrics(seq_num, gt_dir, exp_dir, ref_data_dirs, output_dir, vis=False, save_vis=True):
 	print("Evaluating using experimental metrics...")
 	(Path(output_dir) / seq_num).mkdir(parents=True, exist_ok=True)
 
@@ -109,24 +109,30 @@ def eval_exp_metrics(seq_num, gt_dir, exp_dir, ref_data_dirs, output_dir):
 
 			# save data for sequence evaluation (metrics)
 			eval_seq_store_exp[i] = {
-				"norm_angle_deg": results_exp_curr["norm_angle_deg"],
-				"signed_norm_angle_deg": results_exp_curr["signed_norm_angle_deg"],
-				"pitch_error_deg": results_exp_curr["pitch_error_deg"],
+				"norm_angle_deg"        : results_exp_curr["norm_angle_deg"],
+				"signed_norm_angle_deg" : results_exp_curr["signed_norm_angle_deg"],
+				"pitch_error_deg"       : results_exp_curr["pitch_error_deg"],
 				"signed_pitch_error_deg": results_exp_curr["signed_pitch_error_deg"],
+				"pitch"                 : pitch_exp_curr,
+				"pitch_gt"              : pitch_gt_curr,
+				"mean_reproj_err_px"    : exp_data[i].get("mean_reproj_err_px", np.nan),
 			}
 			eval_seq_store_ref[i] = {
-				"norm_angle_deg": results_ref_curr["norm_angle_deg"],
-				"signed_norm_angle_deg": results_ref_curr["signed_norm_angle_deg"],
-				"pitch_error_deg": results_ref_curr["pitch_error_deg"],
+				"norm_angle_deg"        : results_ref_curr["norm_angle_deg"],
+				"signed_norm_angle_deg" : results_ref_curr["signed_norm_angle_deg"],
+				"pitch_error_deg"       : results_ref_curr["pitch_error_deg"],
 				"signed_pitch_error_deg": results_ref_curr["signed_pitch_error_deg"],
+				"pitch"                 : pitch_ref_curr,
+				"pitch_gt"              : pitch_gt_curr,
+				"mean_reproj_err_px"    : ref_data[i].get("mean_reproj_err_px", np.nan),
 			}
 
 			# plot normals
-			# eval_vis.plot_complex_normal(
-			# 	cam_pts_3d_gt, plane_coeffs_gt, centroid_gt,
-			# 	normal_exp, normal_gt, normal_ref,
-			# 	output_dir, seq_num, i, vis=False, save_vis=False
-			# )
+			eval_vis.plot_complex_normal(
+				cam_pts_3d_gt, plane_coeffs_gt, centroid_gt,
+				normal_exp, normal_gt, normal_ref,
+				output_dir, seq_num, i, vis=vis, save_vis=save_vis
+			)
 
 			pbar.update(1)
 
@@ -148,6 +154,12 @@ def eval_exp_metrics(seq_num, gt_dir, exp_dir, ref_data_dirs, output_dir):
 	table.add_column("Avg Signed Normal Error (°)", justify="center", style="cyan", no_wrap=True)
 	table.add_column("Avg Pitch Error (°)", justify="center", style="green", no_wrap=True)
 	table.add_column("Avg Signed Pitch Error (°)", justify="center", style="blue", no_wrap=True)
+	table.add_column("MAE θ (°)", justify="center", no_wrap=True)
+	table.add_column("RMSE θ (°)",justify="center", no_wrap=True)
+	table.add_column("AOE>3° (%)",justify="center", no_wrap=True)
+	table.add_column("Lag (fr)",  justify="center", no_wrap=True)
+	table.add_column("Reproj (px)",justify="center", no_wrap=True)
+
 
 	table.add_row(
 		"Ours",
@@ -155,6 +167,11 @@ def eval_exp_metrics(seq_num, gt_dir, exp_dir, ref_data_dirs, output_dir):
 		f"{results_exp['avg_signed_norm_angle_deg']:.3f}",
 		f"{results_exp['avg_pitch_error_deg']:.3f}",
 		f"{results_exp['avg_signed_pitch_error_deg']:.3f}",
+		f"{results_exp['avg_pitch_mae_deg']:.3f}",
+		f"{results_exp['rmse_pitch_deg']:.3f}",
+		f"{results_exp['aoe3_percent']:.2f}",
+		f"{results_exp['lag_frames']:.1f}",
+		f"{results_exp['avg_reproj_err_px']:.2f}"
 	)
 	table.add_row(
 		"SOTA",
@@ -162,6 +179,11 @@ def eval_exp_metrics(seq_num, gt_dir, exp_dir, ref_data_dirs, output_dir):
 		f"{results_ref['avg_signed_norm_angle_deg']:.3f}",
 		f"{results_ref['avg_pitch_error_deg']:.3f}",
 		f"{results_ref['avg_signed_pitch_error_deg']:.3f}",
+		f"{results_ref['avg_pitch_mae_deg']:.3f}",
+		f"{results_ref['rmse_pitch_deg']:.3f}",
+		f"{results_ref['aoe3_percent']:.2f}",
+		f"{results_ref['lag_frames']:.1f}",
+		f"{results_ref['avg_reproj_err_px']:.2f}"
 	)
 
 	console.print(table)
@@ -173,6 +195,11 @@ def eval_exp_metrics(seq_num, gt_dir, exp_dir, ref_data_dirs, output_dir):
 		"Average Signed Normal Error (degrees)": [results_exp['avg_signed_norm_angle_deg'], results_ref['avg_signed_norm_angle_deg']],
 		"Average Pitch Error (degrees)": [results_exp['avg_pitch_error_deg'], results_ref['avg_pitch_error_deg']],
 		"Average Signed Pitch Error (degrees)": [results_exp['avg_signed_pitch_error_deg'], results_ref['avg_signed_pitch_error_deg']],
+		"MAE Pitch (degrees)": [results_exp['avg_pitch_mae_deg'], results_ref['avg_pitch_mae_deg']],
+		"RMSE Pitch (degrees)": [results_exp['rmse_pitch_deg'], results_ref['rmse_pitch_deg']],
+		"AOE>3° (%)": [results_exp['aoe3_percent'], results_ref['aoe3_percent']],
+		"Lag (frames)": [results_exp['lag_frames'], results_ref['lag_frames']],
+		"Mean Reproj (px)": [results_exp['avg_reproj_err_px'], results_ref['avg_reproj_err_px']],
 	})
 	df.to_csv(
 		Path(output_dir) / seq_num / f"eval_results_{seq_num}_{timestamp}.csv",
@@ -190,7 +217,7 @@ def eval_exp_metrics(seq_num, gt_dir, exp_dir, ref_data_dirs, output_dir):
 	eval_vis.plot_pitch(pitch_gt, pitch_exp, pitch_ref, output_dir, seq_num, vis=False, save_vis=True)
 
 
-def eval_paper_metrics(seq_num, gt_dir, exp_dir, ref_data_dirs, output_dir):
+def eval_paper_metrics(seq_num, gt_dir, exp_dir, ref_data_dirs, output_dir, vis=False, save_vis=True):
 	print("Evaluating using reference papers' metrics...")
 
 	gt_data_path = Path(gt_dir) / seq_num / "gt" / f"gt_data_{seq_num}.pkl"
@@ -210,16 +237,17 @@ def eval_paper_metrics(seq_num, gt_dir, exp_dir, ref_data_dirs, output_dir):
 	# save eval results
 
 
-@hydra.main(version_base="1.3", config_path="../configs/eval", config_name="eval_panda.yaml")
+@hydra.main(version_base="1.3", config_path="../configs/eval", config_name="eval.yaml")
 def run(cfg: DictConfig):
 	"""
 	Main entry point for evaluation.
 	"""
 	print(f"Running evaluation for sequence {cfg.seq_num} ...")
 	if 'exp' in cfg.eval_types:
-		 eval_exp_metrics(cfg.seq_num, cfg.gt_dir, cfg.exp_dir, cfg.ref_data_dirs, cfg.output_dir)
+		eval_exp_metrics(cfg.seq_num, cfg.gt_dir, cfg.exp_dir, cfg.ref_data_dirs, cfg.output_dir, cfg.vis, cfg.save_vis)
 	if 'paper' in cfg.eval_types:
-		eval_paper_metrics(cfg.seq_num, cfg.gt_dir, cfg.exp_dir, cfg.ref_data_dirs, cfg.output_dir)
+		eval_paper_metrics(cfg.seq_num, cfg.gt_dir, cfg.exp_dir, cfg.ref_data_dirs, cfg.output_dir, cfg.vis, cfg.save_vis)
+
 
 if __name__ == '__main__':
 	run()

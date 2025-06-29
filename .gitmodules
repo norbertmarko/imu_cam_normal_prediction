@@ -4,3 +4,16 @@
 [submodule "src/_ref/pandaset_devkit"]
 	path = src/_ref/pandaset_devkit
 	url = https://github.com/norbertmarko/pandaset-devkit
+[submodule "src/_experiments/_ext/LoFTR"]
+	path = src/_experiments/_ext/LoFTR
+	url = https://github.com/zju3dv/LoFTR
+[submodule "src/_experiments/_ext/EfficientLoFTR"]
+	path = src/_experiments/_ext/EfficientLoFTR
+	url = https://github.com/zju3dv/EfficientLoFTR.git
+
+[submodule "src/_ext/LoFTR"]
+	path = src/_ext/LoFTR
+	url = https://github.com/zju3dv/LoFTR
+[submodule "src/_ext/EfficientLoFTR"]
+	path = src/_ext/EfficientLoFTR
+	url = https://github.com/zju3dv/EfficientLoFTR.git
