@@ -87,7 +87,7 @@
     <div class="container is-max-desktop">
       <div class="columns is-centered">
         <div class="column has-text-centered">
-          <h1 class="title is-1 publication-title">IMU-Aided Monocular Ground Normal Prediction for the Road Ahead</h1>
+          <h1 class="title is-1 publication-title">Monocular Ground Normal Prediction for the Road Ahead</h1>
           <div class="is-size-5 publication-authors">
             <span class="author-block">
               <a href="">Norbert Markó</a><sup>1,2</sup>,</span>
@@ -130,7 +130,7 @@
               </span>
               <!-- Code Link. -->
               <span class="link-block">
-                <a href="https://github.com/norbertmarko/ground-normal-prediction"
+                <a href="https://github.com/norbertmarko/imu_cam_normal_prediction"
                    class="external-link button is-normal is-rounded is-dark">
                   <span class="icon">
                       <i class="fab fa-github"></i>
@@ -140,11 +140,11 @@
               </span>
               <!-- Dataset Link. -->
               <span class="link-block">
-                <a href="https://drive.google.com/drive/folders/1ee7xGS2pCp-vJqfjuuMSpEZ_EmV_g6Pa?usp=drive_link" class="external-link button is-normal is-rounded is-dark">
+                <a href="https://drive.google.com/drive/folders/1tQYw-UU8C_sbC0M1O4lt4fgOCZLZYjis" class="external-link button is-normal is-rounded is-dark">
                   <span class="icon">
                       <i class="far fa-images"></i>
                   </span>
-                  <span>Example Data</span>
+                  <span>GradeSet</span>
                   </a>
               <span class="link-block">
                 <a href="https://www.kaggle.com/datasets/pz19930809/pandaset"
@@ -181,27 +181,34 @@
       <div class="column is-four-fifths">
         <h2 class="title is-3">Abstract</h2>
         <div class="content has-text-justified">
-            <p>
-            Predicting road surface normal and pitch with image-based
-            algorithms remains a significant challenge, especially when steep inclines,
-            declines, and sudden changes in road inclination are involved.
-            </p> 
-            <p>
-            To solve this problem, we propose a novel image-based algorithm that leverages
-            homography decomposition to achieve accurate ground plane normal
-            and pitch estimation.By integrating a Kalman Filter, our method en-
-            hances prediction stability. Further, we incorporate robust sensor fu-
-            sion by integrating IMU-based odometry, ensuring that the estimates
-            are accurately aligned with real-world motion. Overall, our approach
-            outperforms existing techniques in both accuracy and responsiveness
-            for dynamic driving environments.</p> 
-            <p>
-            Experimental results show that our approach achieves superior performance, reducing average pitch and
-            normal errors by 0.493° and 0.483°, respectively, compared to the
-            current state-of-the-art, and exhibits a shorter transient response in
-            case of a sudden road inclination change. Code will be available at
-            https://norbertmarko.github.io/ground-normal-prediction/
-            </p>
+          <p>
+          Robust fusion of monocular and inertial data has
+          the potential to offer a low-cost alternative for ground surface
+          normal prediction ahead, compared to more expensive sensors,
+          such as LiDAR. Yet robust camera-based prediction remains
+          challenging, particularly for steep grades and texture-poor, ho-
+          mogeneous road surfaces.
+          </p> 
+          <p>
+          To address these issues, we propose an
+          enhanced monocular camera-IMU fusion pipeline incorporating
+          a lightweight transformer-based feature matcher for improved
+          correspondence accuracy, and robust temporal filtering, using
+          a SLERP filter, to enhance consistency and reduce drift. To
+          enable rigorous benchmarking and reproducibility, we also
+          standardize the evaluation protocol and release a novel dataset
+          containing synchronized camera, LiDAR, and IMU-derived pose
+          data, specifically captured across diverse incline and decline
+          scenarios.
+          </p>
+        <p>
+          Extensive continuous validation demonstrates that
+          our method significantly improves both accuracy and temporal
+          stability over existing approaches, setting a new state of the
+          art for robust, continuous ground normal estimation ahead.
+          The proposed pipeline and dataset are publicly available at:
+          https://norbertmarko.github.io/imu_cam_normal_prediction/.
+          </p>
         </div>
       </div>
     </div>
@@ -231,77 +238,6 @@
       </div>
     </section>
 
-    <!--/ Abstract. -->
-
-    <!-- Paper video. -->
-    <!-- <div class="columns is-centered has-text-centered">
-      <div class="column is-four-fifths">
-        <h2 class="title is-3">Video</h2>
-        <div class="publication-video">
-          <iframe src="https://www.youtube.com/embed/MrKrnHhk8IA?rel=0&amp;showinfo=0"
-                  frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-        </div>
-      </div>
-    </div> -->
- 
-<!-- Result Figures: SVG images with captions, placed vertically -->
-<section class="section">
-  <div class="container is-max-desktop">
-    <h2 class="title is-3">Result Figures</h2>
-    <div class="content">
-      <figure class="image">
-        <img src="./static/images/pitch_plot_020.svg" alt="Sequence 020 comparison with SOTA">
-        <figcaption class="has-text-centered">Sequence 020 comparison with SOTA.</figcaption>
-      </figure>
-      <figure class="image">
-        <img src="./static/images/pitch_plot_029.svg" alt="Sequence 029 comparison with SOTA">
-        <figcaption class="has-text-centered">Sequence 029 comparison with SOTA.</figcaption>
-      </figure>
-      <figure class="image">
-        <img src="./static/images/pitch_plot_034.svg" alt="Sequence 034 comparison with SOTA">
-        <figcaption class="has-text-centered">Sequence 034 comparison with SOTA.</figcaption>
-      </figure>
-      <figure class="image">
-        <img src="./static/images/pitch_plot_039.svg" alt="Sequence 039 comparison with SOTA">
-        <figcaption class="has-text-centered">Sequence 039 comparison with SOTA.</figcaption>
-      </figure>
-      <figure class="image">
-        <img src="./static/images/pitch_plot_040.svg" alt="Sequence 040 comparison with SOTA">
-        <figcaption class="has-text-centered">Sequence 040 comparison with SOTA.</figcaption>
-      </figure>
-      <figure class="image">
-        <img src="./static/images/pitch_plot_043.svg" alt="Sequence 043 comparison with SOTA">
-        <figcaption class="has-text-centered">Sequence 043 comparison with SOTA.</figcaption>
-      </figure>
-      <figure class="image">
-        <img src="./static/images/pitch_plot_044.svg" alt="Sequence 044 comparison with SOTA">
-        <figcaption class="has-text-centered">Sequence 044 comparison with SOTA.</figcaption>
-      </figure>
-    </div>
-  </div>
-</section>
-
-
-
-<!-- Result Tables: Two table images displayed side by side -->
-<section class="section">
-  <div class="container is-max-desktop">
-    <h2 class="title is-3">Result Tables</h2>
-    <div class="columns is-centered">
-      <div class="column is-half">
-        <figure class="image">
-          <img src="./static/images/table_1.png" alt="Result Table 1">
-        </figure>
-      </div>
-      <div class="column is-half">
-        <figure class="image">
-          <img src="./static/images/table_2.png" alt="Result Table 2">
-        </figure>
-      </div>
-    </div>
-  </div>
-</section>
-
 
 
 <section class="section" id="BibTeX">
@@ -309,12 +245,12 @@
     <h2 class="title">BibTeX</h2>
     <pre><code>@article{marko2025roboust,
   author    = {Norbert Markó and Zoltán Rózsa and Áron Ballagi and Tamás Szirányi},
-  title     = {Robust Road Surface Normal and Pitch Estimation via IMU-Camera Fusion},
+  title     = {Monocular Ground Normal Prediction for the Road Ahead},
   journal   = {},
   year      = {2025},
 }</code></pre>
   </div>
-</section>
+</section> -->
 
 
 <footer class="footer">
