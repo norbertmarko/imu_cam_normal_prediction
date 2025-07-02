@@ -1,4 +1,4 @@
-# ground-normal-prediction
+# imu_cam_normal_prediction
 Code and supplementary material for the paper "Monocular Ground Normal Prediction for the Road Ahead".
 
 Project website: [https://norbertmarko.github.io/imu_cam_normal_prediction/](https://norbertmarko.github.io/imu_cam_normal_prediction/)
