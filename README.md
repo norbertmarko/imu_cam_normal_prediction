@@ -1,7 +1,7 @@
 # ground-normal-prediction
-Code and supplementary material for the paper "Robust Road Surface Normal and Pitch Estimation via IMU-Camera Fusion".
+Code and supplementary material for the paper "Monocular Ground Normal Prediction for the Road Ahead".
 
-Project website: [https://norbertmarko.github.io/ground-normal-prediction/](https://norbertmarko.github.io/ground-normal-prediction/)
+Project website: [https://norbertmarko.github.io/imu_cam_normal_prediction/](https://norbertmarko.github.io/imu_cam_normal_prediction/)
 
 ![Demo GIF](./docs/static/images/output_029_normal.gif)
 
@@ -11,7 +11,7 @@ The commands below are Linux-based. To run the code, you can either use WSL2 wit
 
 Clone project (with submodules):
 ```bash
-git clone --recurse-submodules https://github.com/norbertmarko/ground-normal-prediction
+git clone --recurse-submodules https://norbertmarko.github.io/imu_cam_normal_prediction/
 ```
 ```bash
 cd ground-normal-prediction
