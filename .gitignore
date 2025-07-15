@@ -3,6 +3,9 @@ results/
 outputs/
 .DS_store
 .idea
+weights/
+*.ckpt
+*.pyc
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -245,7 +245,7 @@ def main(cfg: DictConfig):
 
 			# matcher
 
-		WEIGHTS_ROOT = Path(cfg.repo_root) / "src" / "_experiments" / "weights"
+		WEIGHTS_ROOT = Path(cfg.repo_root) / "src" / "weights"
 
 		# get raw matches through LOFTR then restrict to ROI
 		src, dst, conf = eloftr.match_eloftr(

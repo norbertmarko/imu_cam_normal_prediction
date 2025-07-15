@@ -4,7 +4,7 @@ import rich.table
 from rich.console import Console
 import rootutils
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
-import src._experiments.eval.metrics.metrics_norm as metrics_norm
+import src.eval.metrics.metrics_norm as metrics_norm
 import numpy as np
 
 def eval_example_paper(data_store, print_results=True):

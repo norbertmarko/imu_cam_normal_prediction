@@ -1,7 +1,11 @@
 import numpy as np
 from scipy.stats import pearsonr
+from scipy.signal import correlate
 from fastdtw import fastdtw
+import cv2
 
+
+# --- 1. Vector-level angular errors
 
 # normal vector error
 def calc_norm_vec_error(normal, normal_gt):
@@ -80,6 +84,8 @@ def calc_signed_norm_vec_error(normal, normal_gt, normal_ref=[0, 0, 1]):
     return signed_angle_deg
 
 
+# --- 2. Pitch-level errors
+
 # pitch error
 def calc_pitch_error(pitch, ref_pitch, signed=False):
     """
@@ -94,6 +100,55 @@ def calc_pitch_error(pitch, ref_pitch, signed=False):
         return pitch_error
     return abs(pitch_error)
 
+
+# --- 3. Sequence-level summary metrics
+
+def calc_mae(errors: np.ndarray) -> float:
+    """Mean absolute error."""
+    return float(np.mean(np.abs(errors)))
+
+
+def calc_rmse(errors: np.ndarray) -> float:
+    """Root-mean-square error."""
+    return float(np.sqrt(np.mean(np.square(errors))))
+
+
+def calc_aoe(errors: np.ndarray, threshold: float = 3.0) -> float:
+    """
+    Angular Outlier Error: % of frames where |error| > threshold.
+    3° ~= typical tolerance in vehicle pitch control / perception papers.
+    """
+    if errors.size == 0:
+        return 0.0
+    return float(np.sum(np.abs(errors) > threshold) / errors.size * 100.0)
+
+
+def calc_lag(pred, gt, fps: float = 30.0) -> float:
+    """
+    Cross-correlation lag (frames) where pred best aligns with gt.
+    Positive lag ⇒ estimate trails GT (is late).
+    
+    Args:
+        pred: Array-like of predictions (will be converted to numpy array)
+        gt: Array-like of ground truth values (will be converted to numpy array)
+        fps: Frames per second (for optional time conversion)
+    """
+    # Convert inputs to numpy arrays
+    pred_arr = np.asarray(pred)
+    gt_arr = np.asarray(gt)
+    
+    if len(pred_arr) == 0:
+        return 0.0
+        
+    # normalise signals to zero-mean to avoid DC bias
+    a = pred_arr - pred_arr.mean()
+    b = gt_arr - gt_arr.mean()
+    xc = correlate(a, b, mode="full")
+    lag_idx = np.argmax(xc) - (len(b) - 1)
+    return float(lag_idx)            # you can convert to seconds: lag_idx / fps
+
+
+# --- 4. Correlation and DTW metrics
 
 def calc_correlation(ref_pitch, homography_params):
 	"""
@@ -134,6 +189,45 @@ def calc_dtw(ref_pitch, homography_params, dist=2):
     return dtw_distances
 
 
+def mean_reprojection_err(H: np.ndarray,
+                          src_pts: np.ndarray,
+                          dst_pts: np.ndarray,
+                          mask: np.ndarray
+    ) -> float:
+    """
+    Mean Euclidean reprojection error (pixels) for inlier correspondences.
+    ε̄ᵣₑₚᵣ = 1/N ∑ ||H pᵢ - qᵢ||²,
+    where pᵢ are the inlier source points, qᵢ are the inlier destination
+    points, and N is the number of inliers.
+    """
+    if H is None or mask is None:
+        return np.nan
+    if src_pts is None or dst_pts is None or len(src_pts) == 0:
+        return np.nan
+    mask_in = mask.ravel().astype(bool)  # (N×1) array of 0’s and 1’s
+    src = src_pts.reshape(-1, 2).astype(np.float32)
+    dst = dst_pts.reshape(-1, 2).astype(np.float32)
+
+    # filter for inliers
+    src_in = src[mask_in]
+    dst_in = dst[mask_in]
+    # check if we have inliers
+    if len(src_in) == 0 or len(dst_in) == 0:
+        return np.nan
+
+    # perspective‑transform and de‑homogenize
+    proj_in = cv2.perspectiveTransform(src_in.reshape(-1, 1, 2), H)
+    if proj_in is None:
+        return np.nan
+
+    # calculate reprojection error
+    proj_in = proj_in.reshape(-1, 2)
+    errs = np.linalg.norm(proj_in - dst_in, axis=1)
+    mean_err = errs.mean()
+
+    return float(mean_err)
+
+
 def test_homography_metrics():
     # Sample data for testing
     ref_pitch = np.linspace(0, 10, 5)  # Reference pitch values
@@ -162,31 +256,31 @@ if __name__ == '__main__':
     # Test Case 1: Perpendicular vectors
     normal1 = np.array([0.0, 0.0, 1.0])
     normal2 = np.array([1.0, 0.0, 0.0])
-    angle_deg = calc_signed_angle_between_norms(normal1, normal2)
+    angle_deg = calc_signed_norm_vec_error(normal1, normal2)
     print(f"Angle between {normal1} and {normal2}: {angle_deg} degrees")  # Expected: 90.0 degrees
 
     # Test Case 2: Vectors with negative rotation
     normal1 = np.array([1.0, 0.0, 0.0])
     normal2 = np.array([0.0, -1.0, 0.0])
-    angle_deg = calc_signed_angle_between_norms(normal1, normal2)
+    angle_deg = calc_signed_norm_vec_error(normal1, normal2)
     print(f"Angle between {normal1} and {normal2}: {angle_deg} degrees")  # Expected: -90.0 degrees
 
     # Test Case 3: Parallel vectors
     normal1 = np.array([1.0, 0.0, 0.0])
     normal2 = np.array([1.0, 0.0, 0.0])
-    angle_deg = calc_signed_angle_between_norms(normal1, normal2)
+    angle_deg = calc_signed_norm_vec_error(normal1, normal2)
     print(f"Angle between {normal1} and {normal2}: {angle_deg} degrees")  # Expected: 0.0 degrees
 
     # Test Case 4: Antiparallel vectors
     normal1 = np.array([1.0, 0.0, 0.0])
     normal2 = np.array([-1.0, 0.0, 0.0])
-    angle_deg = calc_signed_angle_between_norms(normal1, normal2)
+    angle_deg = calc_signed_norm_vec_error(normal1, normal2)
     print(f"Angle between {normal1} and {normal2}: {angle_deg} degrees")  # Expected: 180.0 degrees
 
     # Test Case 5: Vectors parallel to reference normal
     normal1 = np.array([0.0, 0.0, 1.0])
     normal2 = np.array([0.0, 0.0, -1.0])
-    angle_deg = calc_signed_angle_between_norms(normal1, normal2)
+    angle_deg = calc_signed_norm_vec_error(normal1, normal2)
     print(f"Angle between {normal1} and {normal2}: {angle_deg} degrees")  # Expected: 180.0 degrees
 
     # ---- DTW and Correlation Tests ---- #

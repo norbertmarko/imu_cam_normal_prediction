@@ -4,7 +4,7 @@ defaults:
   - _self_
 
 repo_root: ${hydra:runtime.cwd}
-data_root: "/home/norbert/datasets/kitti/dataset/sequences" # "/mnt/e/kitti/dataset/sequences"
+data_root: "/media/norbert/T7/kitti/dataset/sequences"
 
 seq_num: "00"
 # experiments

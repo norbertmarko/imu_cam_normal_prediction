@@ -260,7 +260,7 @@ def main(cfg: DictConfig):
 
 		# matcher
 
-		WEIGHTS_ROOT = Path(cfg.repo_root) / "src" / "_experiments" / "weights"
+		WEIGHTS_ROOT = Path(cfg.repo_root) / "src" / "weights"
 
 		# get raw matches through LOFTR then restrict to ROI
 		src, dst, conf = eloftr.match_eloftr(
@@ -339,19 +339,6 @@ def main(cfg: DictConfig):
 			if ba_filter.ready():
 				normal_refined = ba_filter.solve()
 
-
-		# plane-change metrics
-		if i > 0 and prev_normal is not None:
-			H_norm = np.linalg.inv(camera_K) @ hg_mat @ camera_K
-			H_norm = H_norm / H_norm[2, 2]
-			metrics = pc.compute_plane_metrics(
-				sol, hg_mat, H_norm,
-				prev_rotation, prev_normal,
-				src_pts, dst_pts, mask,
-				lateral_axis=np.array([0, 1, 0]),      # x-backward frame
-				curb_thresh=0.05,                      # 5 cm step detect
-				camera_height=1.7995)
-			plane_change_metrics_log.append(metrics)
 
 		prev_normal   = sol["normal"]
 		prev_rotation = sol["rotation"]

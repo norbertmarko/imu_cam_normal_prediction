@@ -4,8 +4,8 @@ defaults:
   - _self_
 
 repo_root: ${hydra:runtime.cwd}
-data_root: "/home/norbert/datasets/own/clean" # "/mnt/e/own/clean" # "/media/norbert/T7/own/clean"
-processed_data_root: "/home/norbert/datasets/own/processed" # "/mnt/e/own/processed" # "/media/norbert/T7/own/processed"
+data_root: "/media/norbert/T7/own/clean"
+processed_data_root: "/media/norbert/T7/own/processed"
 
 seq_num: "013"
 # experiments
